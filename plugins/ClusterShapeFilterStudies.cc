@@ -60,6 +60,7 @@ ClusterShapeFilterStudies::ClusterShapeFilterStudies(const edm::ParameterSet& iC
 probes_(consumes<edm::View<reco::Muon>>(iConfig.getParameter<edm::InputTag>("probes"))),
 refitter_(iConfig)
 {
+  produces<edm::ValueMap<float> >("median");
   produces<edm::ValueMap<float> >("byCharge0");
   produces<edm::ValueMap<float> >("byCharge1");
   produces<edm::ValueMap<float> >("byCharge2");
@@ -83,6 +84,7 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
 
   unsigned int n = probes->size();
   std::vector<float> byCharge[3];
+  std::vector<float> median(n,0);
   for (unsigned int i = 0; i < 3; ++i) {
       byCharge[i] = std::vector<float>(n,0);
   }
@@ -92,11 +94,15 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
       if (mu.innerTrack().isNull()) continue;
       std::vector<DetAndCharge> hits = hitsOnTrack(*mu.innerTrack());
       std::sort(hits.begin(), hits.end());
+      median[i] = hits.empty() ? 9999. : (
+                    hits.size() % 2 == 1 ? hits[(hits.size()+1)/2].charge 
+                                         : 0.5*(hits[hits.size()/2].charge + hits[hits.size()/2+1].charge));
       byCharge[0][i] = (hits.size() > 0 ? hits[0].charge : 999999.);
       byCharge[1][i] = (hits.size() > 1 ? hits[1].charge : 999999.);
       byCharge[2][i] = (hits.size() > 2 ? hits[2].charge : 999999.);
   }
 
+  storeMap(iEvent, probes, median, "median");
   storeMap(iEvent, probes, byCharge[0], "byCharge0");
   storeMap(iEvent, probes, byCharge[1], "byCharge1");
   storeMap(iEvent, probes, byCharge[2], "byCharge2");
@@ -115,6 +121,7 @@ ClusterShapeFilterStudies::hitsOnTrack(const reco::Track &track) const
             if (hit == 0 || hit->omniCluster().isPixel()) continue;
             int subdet = tm.recHitR().geographicalId().subdetId();
             float charge =  siStripClusterTools::chargePerCM(hit->geographicalId(), hit->stripCluster(), tsos.localParameters());
+            if (charge < 1945.0) std::cout << "Low charge hit on sub " << subdet << ", charge " << charge << ", chi2 " << tm.estimate() << std::endl;
             //std::cout << "subdet " << tm.recHitR().geographicalId().subdetId() << ", hit: " << typeid(tm.recHitR()).name() << ", charge " << charge << ", sub: " << subdet << std::endl;
             ret.push_back(DetAndCharge(subdet,charge)); 
         }
