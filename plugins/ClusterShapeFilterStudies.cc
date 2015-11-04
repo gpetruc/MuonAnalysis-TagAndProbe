@@ -19,6 +19,7 @@
 #include "TrackingTools/TrackRefitter/interface/TrackTransformer.h"
 #include "TrackingTools/PatternTools/interface/Trajectory.h"
 #include "DataFormats/SiStripCluster/interface/SiStripClusterTools.h"
+#include "DataFormats/TrackerRecHit2D/interface/TrackerSingleRecHit.h"
 
 //
 // class declaration
@@ -32,8 +33,12 @@ public:
 private:
   virtual void produce(edm::Event&, const edm::EventSetup&);
 
-  struct DetAndCharge { uint32_t det; float charge; };
-  std::vector<DetAndCharge> && hitsOnTrack(const reco::Track &track) const ;
+  struct DetAndCharge { 
+        uint32_t det; float charge; 
+        DetAndCharge(uint32_t adet, float acharge) : det(adet), charge(acharge) {} 
+        bool operator<(const DetAndCharge &other) const { return charge < other.charge; } 
+  };
+  std::vector<DetAndCharge> hitsOnTrack(const reco::Track &track) const ;
 
   // ----------member data ---------------------------
   const edm::EDGetTokenT<edm::View<reco::Muon>> probes_;    
@@ -86,6 +91,10 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
       const reco::Muon &mu = (*probes)[i];
       if (mu.innerTrack().isNull()) continue;
       std::vector<DetAndCharge> hits = hitsOnTrack(*mu.innerTrack());
+      std::sort(hits.begin(), hits.end());
+      byCharge[0][i] = (hits.size() > 0 ? hits[0].charge : 999999.);
+      byCharge[1][i] = (hits.size() > 1 ? hits[1].charge : 999999.);
+      byCharge[2][i] = (hits.size() > 2 ? hits[2].charge : 999999.);
   }
 
   storeMap(iEvent, probes, byCharge[0], "byCharge0");
@@ -93,21 +102,24 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
   storeMap(iEvent, probes, byCharge[2], "byCharge2");
 }
 
-std::vector<ClusterShapeFilterStudies::DetAndCharge> &&
+std::vector<ClusterShapeFilterStudies::DetAndCharge>
 ClusterShapeFilterStudies::hitsOnTrack(const reco::Track &track) const 
 {
     std::vector<DetAndCharge> ret;
     std::vector<Trajectory> traj  = refitter_.transform(track);
-    if (traj.size() != 1) return std::move(ret);
+    if (traj.size() != 1) return ret; 
     for (const auto &tm : traj.front().measurements()) {
         if (tm.recHit().get() && tm.recHit()->isValid() && tm.updatedState().isValid()) {
-            //const auto &tsos = tm.updatedState();
-            std::cout << "subdet " << tm.recHitR().geographicalId().subdetId() << ", hit: " << typeid(tm.recHitR()).name() << std::endl;
-            //const SiStripRecHit2D *hit = 
-            //ret.emplace_back( { tm.recHitR().geographicalId().subdetId(), siStripClusterTools::chargePerCM() )
+            const auto &tsos = tm.updatedState();
+            const TrackerSingleRecHit *hit = dynamic_cast<const TrackerSingleRecHit *>(&tm.recHitR());
+            if (hit == 0 || hit->omniCluster().isPixel()) continue;
+            int subdet = tm.recHitR().geographicalId().subdetId();
+            float charge =  siStripClusterTools::chargePerCM(hit->geographicalId(), hit->stripCluster(), tsos.localParameters());
+            //std::cout << "subdet " << tm.recHitR().geographicalId().subdetId() << ", hit: " << typeid(tm.recHitR()).name() << ", charge " << charge << ", sub: " << subdet << std::endl;
+            ret.push_back(DetAndCharge(subdet,charge)); 
         }
     }
-    return std::move(ret);
+    return ret;
 }
 
 template<typename Hand, typename T>
