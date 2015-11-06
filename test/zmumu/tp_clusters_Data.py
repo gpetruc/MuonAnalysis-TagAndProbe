@@ -100,6 +100,8 @@ process.tpTree = cms.EDAnalyzer("TagProbeFitTreeProducer",
     isMC           = cms.bool(False),
     addRunLumiInfo = cms.bool(True),
 )
+for S in 'initialStep', 'lowPtTripletStep', 'pixelPairStep', 'detachedTripletStep', 'mixedTripletStep', 'pixelLessStep', 'tobTecStep', 'jetCoreRegionalStep', 'muonSeededStepInOut', 'muonSeededStepOutIn':
+    setattr(process.tpTree.flags, 'TK_'+S, cms.string('innerTrack.isAlgoInMask("%s")' % S))
 
 process.tagAndProbe = cms.Path( 
     process.patMuonsWithTriggerSequence +
