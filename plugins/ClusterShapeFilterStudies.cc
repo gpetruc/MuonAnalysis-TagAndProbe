@@ -38,10 +38,11 @@ private:
         DetAndCharge(uint32_t adet, float acharge) : det(adet), charge(acharge) {} 
         bool operator<(const DetAndCharge &other) const { return charge < other.charge; } 
   };
-  std::vector<DetAndCharge> hitsOnTrack(const reco::Track &track) const ;
+  std::vector<DetAndCharge> hitsOnTrack(const reco::Track &track, double estimateCut=9e9) const ;
 
   // ----------member data ---------------------------
   const edm::EDGetTokenT<edm::View<reco::Muon>> probes_;    
+  double estimateCut_;
   /// Track Transformer
   TrackTransformer refitter_;
 
@@ -58,6 +59,7 @@ private:
 //
 ClusterShapeFilterStudies::ClusterShapeFilterStudies(const edm::ParameterSet& iConfig):
 probes_(consumes<edm::View<reco::Muon>>(iConfig.getParameter<edm::InputTag>("probes"))),
+estimateCut_(iConfig.getParameter<double>("estimateCut")),
 refitter_(iConfig)
 {
   produces<edm::ValueMap<float> >("median");
@@ -92,7 +94,7 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
   for (unsigned int i = 0; i < n; ++i) {
       const reco::Muon &mu = (*probes)[i];
       if (mu.innerTrack().isNull()) continue;
-      std::vector<DetAndCharge> hits = hitsOnTrack(*mu.innerTrack());
+      std::vector<DetAndCharge> hits = hitsOnTrack(*mu.innerTrack(), estimateCut_);
       std::sort(hits.begin(), hits.end());
       median[i] = hits.empty() ? 9999. : (
                     hits.size() % 2 == 1 ? hits[(hits.size()+1)/2].charge 
@@ -109,13 +111,13 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
 }
 
 std::vector<ClusterShapeFilterStudies::DetAndCharge>
-ClusterShapeFilterStudies::hitsOnTrack(const reco::Track &track) const 
+ClusterShapeFilterStudies::hitsOnTrack(const reco::Track &track, double estimateCut) const 
 {
     std::vector<DetAndCharge> ret;
     std::vector<Trajectory> traj  = refitter_.transform(track);
     if (traj.size() != 1) return ret; 
     for (const auto &tm : traj.front().measurements()) {
-        if (tm.recHit().get() && tm.recHit()->isValid() && tm.updatedState().isValid()) {
+        if (tm.recHit().get() && tm.recHit()->isValid() && tm.updatedState().isValid() && tm.estimate() < estimateCut) {
             const auto &tsos = tm.updatedState();
             const TrackerSingleRecHit *hit = dynamic_cast<const TrackerSingleRecHit *>(&tm.recHitR());
             if (hit == 0 || hit->omniCluster().isPixel()) continue;

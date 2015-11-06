@@ -6,7 +6,7 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(True) )
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
-
+process.MessageLogger.suppressError = cms.untracked.vstring("patTriggerFull")
 process.source = cms.Source("PoolSource", 
     #fileNames = cms.untracked.vstring('/store/data/Run2015D/SingleMuon/RAW-RECO/ZMu-PromptReco-v4/000/258/425/00000/361B6FC1-236E-E511-B4F1-02163E014366.root'),
     fileNames = cms.untracked.vstring('/store/data/Run2015C/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/254/790/00000/626F662A-3A4A-E511-987B-02163E012BA2.root'),
@@ -42,6 +42,7 @@ process.probeMuons = cms.EDFilter("PATMuonSelector",
 )
 process.clusterInfo = cms.EDProducer("ClusterShapeFilterStudies",
         probes = cms.InputTag("probeMuons"),
+        estimateCut = cms.double(10), 
         # configuraton for refitter
         DoPredictionsOnly = cms.bool(False),
         Fitter = cms.string('KFFitterForRefitInsideOut'),
@@ -51,6 +52,9 @@ process.clusterInfo = cms.EDProducer("ClusterShapeFilterStudies",
         RefitDirection = cms.string('alongMomentum'),
         RefitRPCHits = cms.bool(True),
         Propagator = cms.string('SmartPropagatorAnyRKOpposite'),
+)
+process.clusterInfoT = process.clusterInfo.clone(
+        estimateCut = 1.0,
 )
 
 process.tpPairs = cms.EDProducer("CandViewShallowCloneCombiner",
@@ -70,6 +74,10 @@ process.tpTree = cms.EDAnalyzer("TagProbeFitTreeProducer",
         clusterCharge0 = cms.InputTag("clusterInfo", "byCharge0"),
         clusterCharge1 = cms.InputTag("clusterInfo", "byCharge1"),
         clusterCharge2 = cms.InputTag("clusterInfo", "byCharge2"),
+        clusterChargeTM = cms.InputTag("clusterInfoT", "median"),
+        clusterChargeT0 = cms.InputTag("clusterInfoT", "byCharge0"),
+        clusterChargeT1 = cms.InputTag("clusterInfoT", "byCharge1"),
+        clusterChargeT2 = cms.InputTag("clusterInfoT", "byCharge2"),
     ),
     flags = cms.PSet(
        TrackQualityFlags,
@@ -101,6 +109,7 @@ process.tagAndProbe = cms.Path(
     process.tpPairs    +
     process.onePair    +
     process.clusterInfo +
+    process.clusterInfoT +
     process.nverticesModule +
     process.l1rate +
     process.tpTree
