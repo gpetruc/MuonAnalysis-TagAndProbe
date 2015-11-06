@@ -104,7 +104,7 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
       std::sort(hitsAll.begin(), hitsAll.end());
       for (int idet = 0; idet < 5; ++idet) {
           std::vector<DetAndCharge> hits;
-          for (auto & h : hits) { 
+          for (auto & h : hitsAll) { 
             if (idet == 0 || h.det == iDETS[idet]) hits.push_back(h);
          }
           median[idet][i] = hits.empty() ? 9999. : (
