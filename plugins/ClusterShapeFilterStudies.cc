@@ -21,9 +21,10 @@
 #include "DataFormats/SiStripCluster/interface/SiStripClusterTools.h"
 #include "DataFormats/TrackerRecHit2D/interface/TrackerSingleRecHit.h"
 
-//
-// class declaration
-//
+namespace {
+    static std::vector<std::string> sDETS{ "", "TIB", "TID", "TOB", "TEC" };
+    static std::vector<unsigned>    iDETS{ 0,   3,      4,     5,     6   };
+}
 
 class ClusterShapeFilterStudies : public edm::EDProducer {
 public:
@@ -62,10 +63,12 @@ probes_(consumes<edm::View<reco::Muon>>(iConfig.getParameter<edm::InputTag>("pro
 estimateCut_(iConfig.getParameter<double>("estimateCut")),
 refitter_(iConfig)
 {
-  produces<edm::ValueMap<float> >("median");
-  produces<edm::ValueMap<float> >("byCharge0");
-  produces<edm::ValueMap<float> >("byCharge1");
-  produces<edm::ValueMap<float> >("byCharge2");
+  for (unsigned int i = 0, n = sDETS.size(); i < n; ++i) { 
+      produces<edm::ValueMap<float> >("median"+sDETS[i]);
+      produces<edm::ValueMap<float> >("byCharge0"+sDETS[i]);
+      produces<edm::ValueMap<float> >("byCharge1"+sDETS[i]);
+      produces<edm::ValueMap<float> >("byCharge2"+sDETS[i]);
+  }
 }
 
 
@@ -85,29 +88,40 @@ ClusterShapeFilterStudies::produce(edm::Event& iEvent, const edm::EventSetup& iS
   if (!probes->empty()) refitter_.setServices(iSetup);
 
   unsigned int n = probes->size();
-  std::vector<float> byCharge[3];
-  std::vector<float> median(n,0);
-  for (unsigned int i = 0; i < 3; ++i) {
-      byCharge[i] = std::vector<float>(n,0);
+  std::vector<float> byCharge[5][3];
+  std::vector<float> median[5];
+  for (unsigned int idet = 0; idet < 5; ++idet) {
+      median[idet] = std::vector<float>(n,0);
+      for (unsigned int i = 0; i < 3; ++i) {
+          byCharge[idet][i] = std::vector<float>(n,0);
+      }
   }
 
   for (unsigned int i = 0; i < n; ++i) {
       const reco::Muon &mu = (*probes)[i];
       if (mu.innerTrack().isNull()) continue;
-      std::vector<DetAndCharge> hits = hitsOnTrack(*mu.innerTrack(), estimateCut_);
-      std::sort(hits.begin(), hits.end());
-      median[i] = hits.empty() ? 9999. : (
-                    hits.size() % 2 == 1 ? hits[(hits.size()+1)/2].charge 
-                                         : 0.5*(hits[hits.size()/2].charge + hits[hits.size()/2+1].charge));
-      byCharge[0][i] = (hits.size() > 0 ? hits[0].charge : 999999.);
-      byCharge[1][i] = (hits.size() > 1 ? hits[1].charge : 999999.);
-      byCharge[2][i] = (hits.size() > 2 ? hits[2].charge : 999999.);
+      std::vector<DetAndCharge> hitsAll = hitsOnTrack(*mu.innerTrack(), estimateCut_);
+      std::sort(hitsAll.begin(), hitsAll.end());
+      for (int idet = 0; idet < 5; ++idet) {
+          std::vector<DetAndCharge> hits;
+          for (auto & h : hits) { 
+            if (idet == 0 || h.det == iDETS[idet]) hits.push_back(h);
+         }
+          median[idet][i] = hits.empty() ? 9999. : (
+                  hits.size() % 2 == 1 ? hits[(hits.size()+1)/2].charge 
+                  : 0.5*(hits[hits.size()/2].charge + hits[hits.size()/2+1].charge));
+          byCharge[idet][0][i] = (hits.size() > 0 ? hits[0].charge : 999999.);
+          byCharge[idet][1][i] = (hits.size() > 1 ? hits[1].charge : 999999.);
+          byCharge[idet][2][i] = (hits.size() > 2 ? hits[2].charge : 999999.);
+      } 
   }
 
-  storeMap(iEvent, probes, median, "median");
-  storeMap(iEvent, probes, byCharge[0], "byCharge0");
-  storeMap(iEvent, probes, byCharge[1], "byCharge1");
-  storeMap(iEvent, probes, byCharge[2], "byCharge2");
+  for (int idet = 0; idet < 5; ++idet) {
+      storeMap(iEvent, probes, median[idet], "median"+sDETS[idet]);
+      storeMap(iEvent, probes, byCharge[idet][0], "byCharge0"+sDETS[idet]);
+      storeMap(iEvent, probes, byCharge[idet][1], "byCharge1"+sDETS[idet]);
+      storeMap(iEvent, probes, byCharge[idet][2], "byCharge2"+sDETS[idet]);
+  }
 }
 
 std::vector<ClusterShapeFilterStudies::DetAndCharge>
