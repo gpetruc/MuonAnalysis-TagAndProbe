@@ -10,6 +10,10 @@ process.MessageLogger.suppressError = cms.untracked.vstring("patTriggerFull")
 process.source = cms.Source("PoolSource", 
     #fileNames = cms.untracked.vstring('/store/data/Run2015D/SingleMuon/RAW-RECO/ZMu-PromptReco-v4/000/258/425/00000/361B6FC1-236E-E511-B4F1-02163E014366.root'),
     fileNames = cms.untracked.vstring('/store/data/Run2015C/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/254/790/00000/626F662A-3A4A-E511-987B-02163E012BA2.root'),
+    lumisToProcess = cms.untracked.VLuminosityBlockRange("254790:90", "254790:93-254790:630", "254790:633-254790:697", "254790:701-254790:715", "254790:719-254790:784",
+    "254833:43", "254833:46-254833:861", "254833:863-254833:1505", "254833:1507-254833:1582", "254833:1584-254833:1632",
+    "258425:3-258425:136", "258445:1-258445:302", "259721:73-259721:99", "259721:102-259721:408", "260575:1-260575:24",
+    "260576:1-260576:473", "260577:1-260577:76", "260627:97-260627:1845")
 )
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )    
 
