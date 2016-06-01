@@ -8,6 +8,8 @@
 <use   name="CondFormats/PhysicsToolsObjects"/>
 <use   name="RecoMuon/Records"/>
 <use   name="CondCore/PluginSystem"/>
+<use   name="TrackingTools/TrackRefitter"/>
+<use   name="DataFormats/SiStripCluster"/>
 <export>
   <lib   name="1"/>
 </export>
