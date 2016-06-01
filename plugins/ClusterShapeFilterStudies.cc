@@ -137,7 +137,7 @@ ClusterShapeFilterStudies::hitsOnTrack(const reco::Track &track, double estimate
             if (hit == 0 || hit->omniCluster().isPixel()) continue;
             int subdet = tm.recHitR().geographicalId().subdetId();
             float charge =  siStripClusterTools::chargePerCM(hit->geographicalId(), hit->stripCluster(), tsos.localParameters());
-            if (charge < 1945.0) std::cout << "Low charge hit on sub " << subdet << ", charge " << charge << ", chi2 " << tm.estimate() << std::endl;
+            //if (charge < 1945.0) std::cout << "Low charge hit on sub " << subdet << ", charge " << charge << ", chi2 " << tm.estimate() << std::endl;
             //std::cout << "subdet " << tm.recHitR().geographicalId().subdetId() << ", hit: " << typeid(tm.recHitR()).name() << ", charge " << charge << ", sub: " << subdet << std::endl;
             ret.push_back(DetAndCharge(subdet,charge)); 
         }

@@ -1,7 +1,6 @@
 <export>
 </export>
 <library   name="MuonAnalysisTagAndProbe_plugins" file="*.cc">
-  <use   name="CondCore/DBCommon"/>
   <use   name="CondCore/DBOutputService"/>
   <use   name="CondCore/PluginSystem"/>
   <use   name="CondFormats/DataRecord"/>
