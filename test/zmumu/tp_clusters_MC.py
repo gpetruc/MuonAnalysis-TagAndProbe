@@ -63,9 +63,6 @@ process.clusterInfo = cms.EDProducer("ClusterShapeFilterStudies",
         RefitRPCHits = cms.bool(True),
         Propagator = cms.string('SmartPropagatorAnyRKOpposite'),
 )
-process.clusterInfoT = process.clusterInfo.clone(
-        estimateCut = 1.0,
-)
 
 process.tpPairs = cms.EDProducer("CandViewShallowCloneCombiner",
     cut = cms.string('60 < mass < 140'),
@@ -84,26 +81,8 @@ process.tpTree = cms.EDAnalyzer("TagProbeFitTreeProducer",
         clusterCharge0 = cms.InputTag("clusterInfo", "byCharge0"),
         clusterCharge1 = cms.InputTag("clusterInfo", "byCharge1"),
         clusterCharge2 = cms.InputTag("clusterInfo", "byCharge2"),
-        clusterChargeTM = cms.InputTag("clusterInfoT", "median"),
-        clusterChargeT0 = cms.InputTag("clusterInfoT", "byCharge0"),
-        clusterChargeT1 = cms.InputTag("clusterInfoT", "byCharge1"),
-        clusterChargeT2 = cms.InputTag("clusterInfoT", "byCharge2"),
-        clusterChargeTMTIB = cms.InputTag("clusterInfoT", "medianTIB"),
-        clusterChargeT0TIB = cms.InputTag("clusterInfoT", "byCharge0TIB"),
-        clusterChargeT1TIB = cms.InputTag("clusterInfoT", "byCharge1TIB"),
-        clusterChargeT2TIB = cms.InputTag("clusterInfoT", "byCharge2TIB"),
-        clusterChargeTMTOB = cms.InputTag("clusterInfoT", "medianTOB"),
-        clusterChargeT0TOB = cms.InputTag("clusterInfoT", "byCharge0TOB"),
-        clusterChargeT1TOB = cms.InputTag("clusterInfoT", "byCharge1TOB"),
-        clusterChargeT2TOB = cms.InputTag("clusterInfoT", "byCharge2TOB"),
-        clusterChargeTMTID = cms.InputTag("clusterInfoT", "medianTID"),
-        clusterChargeT0TID = cms.InputTag("clusterInfoT", "byCharge0TID"),
-        clusterChargeT1TID = cms.InputTag("clusterInfoT", "byCharge1TID"),
-        clusterChargeT2TID = cms.InputTag("clusterInfoT", "byCharge2TID"),
-        clusterChargeTMTEC = cms.InputTag("clusterInfoT", "medianTEC"),
-        clusterChargeT0TEC = cms.InputTag("clusterInfoT", "byCharge0TEC"),
-        clusterChargeT1TEC = cms.InputTag("clusterInfoT", "byCharge1TEC"),
-        clusterChargeT2TEC = cms.InputTag("clusterInfoT", "byCharge2TEC"),
+        clusterCharge3 = cms.InputTag("clusterInfo", "byCharge3"),
+        clusterCharge4 = cms.InputTag("clusterInfo", "byCharge4"),
         tkValidStripHits = cms.string("? track.isNull ? 0 : track.hitPattern.numberOfValidStripHits"),
         tkLostStripHits = cms.string("? track.isNull ? 0 : track.hitPattern.numberOfLostStripHits('TRACK_HITS')"),
         tkValidStripTIBHits = cms.string("? track.isNull ? 0 : track.hitPattern.numberOfValidStripTIBHits"),
@@ -136,8 +115,27 @@ process.tpTree = cms.EDAnalyzer("TagProbeFitTreeProducer",
     isMC           = cms.bool(False),
     addRunLumiInfo = cms.bool(True),
 )
-for S in 'initialStep', 'lowPtTripletStep', 'pixelPairStep', 'detachedTripletStep', 'mixedTripletStep', 'pixelLessStep', 'tobTecStep', 'jetCoreRegionalStep', 'muonSeededStepInOut', 'muonSeededStepOutIn':
+STEPS = [ 'initialStep', 'lowPtTripletStep', 'pixelPairStep', 'detachedTripletStep', 'mixedTripletStep', 'pixelLessStep', 'tobTecStep', 'jetCoreRegionalStep', 'muonSeededStepInOut', 'muonSeededStepOutIn' ]
+for S in STEPS:
     setattr(process.tpTree.flags, 'TK_'+S, cms.string('innerTrack.isAlgoInMask("%s")' % S))
+setattr(process.tpTree.flags, 'TK_classic',      cms.string("||".join('innerTrack.isAlgoInMask("%s")' % S for S in STEPS if "muon" not in S and "jetCore" not in S)))
+setattr(process.tpTree.flags, 'TK_earlyGeneral', cms.string("||".join('innerTrack.isAlgoInMask("%s")' % S for S in STEPS if "muon" not in S)))
+for ID,S,L in (3,'TIB',4), (4,'TID',3), (5,'TOB',6), (6,'TEC',9):
+    for iL in xrange(1,L+1):
+        setattr(process.tpTree.variables, 'tk%s%dLayerCaseTK' % (S,iL), cms.string("track.hitPattern.getTrackerLayerCase('TRACK_HITS',         %d, %d)" % (ID,iL)))
+        setattr(process.tpTree.variables, 'tk%s%dLayerCaseEI' % (S,iL), cms.string("track.hitPattern.getTrackerLayerCase('MISSING_INNER_HITS', %d, %d)" % (ID,iL)))
+        setattr(process.tpTree.variables, 'tk%s%dLayerCaseEO' % (S,iL), cms.string("track.hitPattern.getTrackerLayerCase('MISSING_OUTER_HITS', %d, %d)" % (ID,iL)))
+        setattr(process.tpTree.flags, 'tk%s%dHitEffNum' % (S,iL), 
+                cms.string(          "track.hitPattern.getTrackerLayerCase('TRACK_HITS', %d, %d) == 0" % (ID,iL)))
+        setattr(process.tpTree.flags, 'tk%s%dHitEffDen0' % (S,iL), 
+                cms.string(          "track.hitPattern.getTrackerLayerCase('TRACK_HITS', %d, %d) <= 1" % (ID,iL)))
+        setattr(process.tpTree.flags, 'tk%s%dHitEffDen1' % (S,iL), 
+                cms.string("||".join("track.hitPattern.getTrackerLayerCase('%s', %d, %d) <= 1" % (T,ID,iL) for T in 'TRACK_HITS MISSING_INNER_HITS MISSING_OUTER_HITS'.split())))
+        setattr(process.tpTree.flags, 'tk%s%dHitEffDen2' % (S,iL), 
+                cms.string("||".join("track.hitPattern.getTrackerLayerCase('%s', %d, %d) <= 3" % (T,ID,iL) for T in 'TRACK_HITS MISSING_INNER_HITS MISSING_OUTER_HITS'.split())))
+        setattr(process.tpTree.variables, 'clusterChargeMin%s%d' % (S,iL), cms.InputTag("clusterInfo","byLayerMin%s%d" %(S,iL)))
+        setattr(process.tpTree.variables, 'clusterChargeMax%s%d' % (S,iL), cms.InputTag("clusterInfo","byLayerMax%s%d" %(S,iL)))
+    
 
 process.tagAndProbe = cms.Path( 
     process.patMuonsWithTriggerSequence +
@@ -147,10 +145,17 @@ process.tagAndProbe = cms.Path(
     process.tpPairs    +
     process.onePair    +
     process.clusterInfo +
-    process.clusterInfoT +
     process.nverticesModule +
     process.l1rate +
     process.tpTree
 )
 
 process.TFileService = cms.Service("TFileService", fileName = cms.string("tnpZ_MC.root"))
+process.source.fileNames = [
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/2EEA1A46-D708-E611-ACF6-0025905A6126.root',
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/6C4B6E3A-D708-E611-B830-0CC47A78A4A6.root',
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/AA4DB247-D708-E611-A486-0025905A612A.root',
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/CAFAB841-D708-E611-A028-0CC47A4D7626.root',
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/F26B2947-D708-E611-8B49-0025905A48F0.root',
+	'/store/relval/CMSSW_8_0_5/RelValZMM_13/GEN-SIM-RECO/PU25ns_80X_mcRun2_asymptotic_v12_gs7120p2-v1/00000/F483623F-D708-E611-A6EC-0CC47A4D7662.root',
+]
