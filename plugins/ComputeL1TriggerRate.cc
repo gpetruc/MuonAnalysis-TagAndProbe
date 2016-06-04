@@ -57,7 +57,7 @@ void ComputeL1TriggerRate::produce(edm::Event& iEvent, const edm::EventSetup& iS
   edm::Handle<std::vector<Level1TriggerScalers> > scalers; 
   iEvent.getByToken(scalersLabel_, scalers); 
 
-  writeGlobalFloat(iEvent, probes, scalers->empty() ? -1 : scalers->front().gtTriggersRate(), "");
+  if (scalers.isValid()) writeGlobalFloat(iEvent, probes, scalers->empty() ? -1 : scalers->front().gtTriggersRate(), "");
   writeGlobalFloat(iEvent, probes, iEvent.bunchCrossing(), "bx");
 }
 
