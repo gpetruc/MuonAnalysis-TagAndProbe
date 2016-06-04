@@ -21,7 +21,9 @@ process.load('Configuration.StandardSequences.MagneticField_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff')
 process.load("Configuration.StandardSequences.Reconstruction_cff")
 import EventFilter.SiStripRawToDigi.SiStripDigis_cfi
-process.siStripDigisRedone = EventFilter.SiStripRawToDigi.SiStripDigis_cfi.siStripDigis.clone()
+process.siStripDigisRedone = EventFilter.SiStripRawToDigi.SiStripDigis_cfi.siStripDigis.clone(
+    UnpackCommonModeValues = True,
+)
 
 from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, '80X_dataRun2_Express_v6', '')
@@ -79,6 +81,7 @@ process.clusterInfo = cms.EDProducer("DebugTkHits",
         pairs = cms.InputTag("tpPairs"),
         stripClusters = cms.InputTag("siStripClusters"),
         stripDigis = cms.InputTag("siStripDigisRedone","ZeroSuppressed"),
+        stripCommonMode = cms.InputTag("siStripDigisRedone","CommonMode"),
         tracker = cms.InputTag("MeasurementTrackerEvent"),
         layersToDebug = cms.untracked.vstring("TOB1"),
         # configuraton for refitter

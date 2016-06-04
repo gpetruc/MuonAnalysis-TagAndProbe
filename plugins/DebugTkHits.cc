@@ -34,6 +34,7 @@
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
 #include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
 #include "CalibTracker/Records/interface/SiStripQualityRcd.h"
+#include "RecoTracker/MeasurementDet/src/TkMeasurementDetSet.h"
 
 namespace {
     static std::vector<std::string> sDETS{ "", "PXB", "PXF", "TIB", "TID", "TOB", "TEC" };
@@ -54,7 +55,7 @@ private:
   const edm::EDGetTokenT<edm::View<reco::Candidate>> pairs_;    
   const edm::EDGetTokenT<edmNew::DetSetVector<SiStripCluster>> stripClusterLabel_;
   const edm::EDGetTokenT<edm::DetSetVector<SiStripDigi>> stripDigiLabel_;
-  const edm::EDGetTokenT<edm::DetSetVector<SiStripRawDigi>> stripRawDigiLabel_;
+  const edm::EDGetTokenT<edm::DetSetVector<SiStripRawDigi>> stripCommonModeLabel_;
   edm::EDGetTokenT<MeasurementTrackerEvent> tracker_;
   /// Layers to debug
   std::vector<std::string> layersToDebug_;
@@ -82,7 +83,7 @@ DebugTkHits::DebugTkHits(const edm::ParameterSet& iConfig):
     pairs_(consumes<edm::View<reco::Candidate>>(iConfig.getParameter<edm::InputTag>("pairs"))),
     stripClusterLabel_(consumes<edmNew::DetSetVector<SiStripCluster>>(iConfig.getParameter<edm::InputTag>("stripClusters"))),
     stripDigiLabel_(consumes<edm::DetSetVector<SiStripDigi>>(iConfig.getParameter<edm::InputTag>("stripDigis"))),
-    //stripRawDigiLabel_(consumes<edm::DetSetVector<SiStripRawDigi>>(iConfig.getParameter<edm::InputTag>("stripRawDigis"))),
+    stripCommonModeLabel_(consumes<edm::DetSetVector<SiStripRawDigi>>(iConfig.getParameter<edm::InputTag>("stripCommonMode"))),
     tracker_(consumes<MeasurementTrackerEvent>(iConfig.getParameter<edm::InputTag>("tracker"))),
     layersToDebug_(iConfig.getUntrackedParameter<std::vector<std::string>>("layersToDebug", std::vector<std::string>())),
     refitter_(iConfig),
@@ -120,10 +121,12 @@ DebugTkHits::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(stripClusterLabel_, stripC); 
   edm::Handle<edm::DetSetVector<SiStripDigi> > stripD; 
   iEvent.getByToken(stripDigiLabel_, stripD); 
+  edm::Handle<edm::DetSetVector<SiStripRawDigi> > stripCM; 
+  iEvent.getByToken(stripCommonModeLabel_, stripCM); 
 
   Handle<MeasurementTrackerEvent> tracker;
   iEvent.getByToken(tracker_, tracker);
-
+  const StMeasurementConditionSet & stripConds = tracker->measurementTracker().stripDetConditions();
 
   for (const reco::Candidate & pair : *pairs) {
       const reco::Muon &mu = dynamic_cast<const reco::Muon &>(*pair.daughter(1)->masterClone());
@@ -182,15 +185,19 @@ DebugTkHits::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
       }
       for (const GeomDet *det : gdets) {
           where = det->geographicalId(); mdet = tracker->idToDet(where);
-          std::cout << "Analyzing module at " << where() << ", isActive? " << mdet.isActive() << std::endl;
-          float utraj = 0, uerr = 0; bool pred = false, hascluster = false, hasdigi = false, anycluster = false, anydigi = false;
+          int denseIndex = stripConds.find(where());
+          if (denseIndex == stripConds.nDet()) { std::cout << "Module missing in strip conditions set" << std::endl; continue; }
+          int nStrips = stripConds.totalStrips(denseIndex);
+          std::cout << "Analyzing module at " << where() << ", isActive? " << mdet.isActive() << ", strips " << nStrips << std::endl;
+          float utraj = 0, uerr = 0; unsigned int uapv = 0; bool pred = false, hascluster = false, hasdigi = false, anycluster = false, anydigi = false; int cmode = -1;
           if (tsosBefore.isValid()) {
              TrajectoryStateOnSurface tsos = thePropagator->propagate(tsosBefore, det->surface());
              if (tsos.isValid()) {  
                 pred = true;
                 utraj = det->topology().measurementPosition( tsos.localPosition() ).x();
                 uerr  = std::sqrt( det->topology().measurementError( tsos.localPosition(), tsos.localError().positionError() ).uu() ); 
-                std::cout << "  Searching around strip " << utraj << " +/- " << uerr << "    APV: " << utraj/128 << std::endl;
+                uapv = std::min<unsigned int>(nStrips-1,std::max<float>(0,utraj))/128;
+                std::cout << "  Searching around strip " << utraj << " +/- " << uerr << "    APV: " << uapv << std::endl;
              } else {
                 std::cout << "  Failed to propagate??" << std::endl;
              }
@@ -220,7 +227,7 @@ DebugTkHits::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
                 for (unsigned int s = cluster.firstStrip(), i = 0, e  = amps.size(); i < e; ++s, ++i) {  
                     std::cout << "   " << std::setw(4) << s << " | " << (s/128) << " | "; bar(amps[i], 2);
                     if (pred && std::abs(s-utraj) < 5) { hascluster = true; anycluster = true; }
-                    if (pred && (s/128) == floor(utraj/128)) anycluster = true;
+                    if (pred && (s/128) == uapv) anycluster = true;
                 }
             }
           }
@@ -232,15 +239,30 @@ DebugTkHits::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
               const edm::DetSet<SiStripDigi> & digis = *di_iter;
               for (unsigned int idigi = 0, ndigi = digis.size(); idigi < ndigi; ++idigi) {
                   if (idigi > 0 && (digis[idigi].strip() > digis[idigi-1].strip()+1)) std::cout << "      ---------------------" << std::endl;
-                  std::cout << "   " << std::setw(4) << digis[idigi].strip() << " | " << (digis[idigi].strip()/128) << " | "; bar(digis[idigi].adc(), 4, 1024);
+                  std::cout << "   " << std::setw(4) << digis[idigi].strip() << " | " << (digis[idigi].strip()/128) << " | "; bar(digis[idigi].adc(), 2, 1024);
                   if (pred && std::abs(digis[idigi].strip()-utraj) < 5) { hasdigi = true; anydigi = true; }
-                  if (pred && (digis[idigi].strip()/128) == floor(utraj/128)) anydigi = true;
+                  if (pred && (digis[idigi].strip()/128) == uapv) anydigi = true;
+              }
+          }
+          auto cm_iter = stripCM->find(where);
+          if (cm_iter == stripCM->end()) {
+              std::cout << "  ... no strip common mode on this detid" << std::endl;
+          } else {
+              std::cout << "  Common mode on this detid" << std::endl;
+              const edm::DetSet<SiStripRawDigi> & apvs = *cm_iter;
+              for (unsigned int iapv = 0, napv = apvs.size(); iapv < napv; ++iapv) {
+                  std::cout << "   " << std::setw(4) << "..." << " | " << (iapv) << " | "; bar(apvs[iapv].adc(), 2, 1024);
+                  if (pred && (iapv == uapv)) cmode = apvs[iapv].adc();
               }
           }
           if (pred) {
              std::cout << "  Summary: " << ( hascluster  ? " cluster" : (anycluster ? " " : " no-clusters")) << 
-                                          ( hasdigi  ? " digi" : (anydigi ? " " : " no-digis")) << std::endl;
+                                           ( hasdigi  ? " digi" : (anydigi ? " " : " no-digis"));
+             if (cmode >= 0) std::cout <<  " CM=" << cmode;
+             if (utraj < 0 || utraj > nStrips) std::cout << " maybe-outside" ;
+             std::cout << std::endl;
           }
+
       }
       for (const auto &tm : traj.front().measurements()) {
           if (tm.recHit().get() && !tm.recHit()->isValid()) {
