@@ -209,6 +209,7 @@ HighPtTriggerFlags = cms.PSet(
    IsoMu18          = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu18_v*',1,0).empty()"),
    IsoMu20          = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu20_v*',1,0).empty()"),
    IsoMu22          = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu22_v*',1,0).empty()"),
+   IsoMu24          = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu24_v*',1,0).empty()"),
    IsoMu27          = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu27_v*',1,0).empty()"),
    IsoMu17_eta2p1   = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu17_eta2p1_v*',1,0).empty()"),
    IsoMu20_eta2p1   = cms.string("!triggerObjectMatchesByPath('HLT_IsoMu20_eta2p1_v*',1,0).empty()"),
